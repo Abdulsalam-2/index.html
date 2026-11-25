@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="تقارير الميدان" />
+  <title>تطبيق التقارير الميدانية المصورة</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #020617;
+      color: #f8fafc;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .inp { width:100%; background:#020617; border:1px solid #1e293b; border-radius:.75rem; padding:.55rem .75rem; font-size:.875rem; color:#fff; outline:none; }
+    .inp:focus { border-color:#6366f1; }
+    .chk { width:1.1rem; height:1.1rem; accent-color:#4f46e5; }
+
+    /* ---------- Report pages (A4) ---------- */
+    #preview { display:none; }
+    #preview.open { display:block; position:fixed; inset:0; z-index:50; background:#0f172a; overflow:auto; }
+    .page-wrap { margin: 0 auto 16px auto; }
+    .page {
+      position: relative; width: 210mm; height: 297mm; overflow: hidden;
+      background: #fff; color: #0f172a; margin: 0 auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      font-family: 'Cairo', sans-serif;
+      transform-origin: top center;
+    }
+    .page .lh { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; z-index:0; }
+    .page .content { position:absolute; z-index:1; display:flex; flex-direction:column; }
+    .page .grid-photos { flex:1; display:grid; gap:4mm; min-height:0; }
+    .page .cell { display:flex; flex-direction:column; min-height:0; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; background:rgba(255,255,255,.85); }
+    .page .cell .imgbox { flex:1; min-height:0; position:relative; }
+    .page .cell .imgbox img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+    .page .cap { font-size:10pt; font-weight:600; margin-top:1.5mm; line-height:1.35; overflow-wrap:anywhere; }
+    .page .meta { font-size:8pt; color:#475569; direction:rtl; }
+    .page .pno { font-size:8pt; color:#64748b; text-align:center; margin-top:2mm; }
+    .page table.info { width:100%; border-collapse:collapse; font-size:9.5pt; margin-bottom:3mm; }
+    .page table.info td { border:1px solid #cbd5e1; padding:1mm 2mm; }
+    .page table.info td.k { background:rgba(241,245,249,.9); font-weight:700; width:28%; }
+    .page .notes { font-size:9.5pt; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; margin-bottom:3mm; background:rgba(248,250,252,.9); max-height:30mm; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      html, body { background:#fff !important; padding:0 !important; margin:0 !important; }
+      body > *:not(#preview) { display:none !important; }
+      #preview, #preview.open { display:block !important; position:static !important; background:none !important; overflow:visible !important; }
+      #preview .preview-bar { display:none !important; }
+      #pages { padding:0 !important; }
+      .page-wrap { width:auto !important; height:auto !important; margin:0 !important; }
+      .page { transform:none !important; zoom:1 !important; margin:0 !important; box-shadow:none !important; break-after:page; page-break-after:always; }
+      .page:last-child { break-after:auto; page-break-after:auto; }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-28">
+
+  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">📋</div>
+      <div>
+        <h1 class="text-sm font-bold text-white">المُوثِّق الميداني</h1>
+        <p class="text-[10px] text-amber-400" id="gps-status-mini">GPS: غير مُفعّل</p>
+      </div>
+    </div>
+    <button onclick="clearAllData()" class="text-xs text-red-400 bg-red-950/40 px-3 py-1.5 rounded-lg border border-red-900/50">تقرير جديد</button>
+  </header>
+
+  <main class="max-w-md mx-auto p-4 space-y-5">
+    <!-- 1. Project info -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <h2 class="text-xs font-bold text-indigo-400">1. معلومات المشروع والموقع</h2>
+      <div><label class="block text-xs text-slate-400 mb-1">اسم المشروع / التقرير</label>
+        <input type="text" id="projectName" placeholder="مثال: صيانة مبنى الإدارة" class="inp" onblur="refreshWatermarksNow()" /></div>
+      <div><label class="block text-xs text-slate-400 mb-1">اسم الموقع / المنطقة</label>
+        <input type="text" id="locationName" placeholder="مثال: الدور الثالث" class="inp" onblur="refreshWatermarksNow()" /></div>
+      <div><label class="block text-xs text-slate-400 mb-1">مُعِدّ التقرير (اختياري)</label>
+        <input type="text" id="preparedBy" placeholder="مثال: م. أحمد" class="inp" /></div>
+      <div><label class="block text-xs text-slate-400 mb-1">ملاحظات عامة</label>
+        <textarea id="generalNotes" rows="2" placeholder="اكتب ملخص المعاينة..." class="inp resize-none"></textarea></div>
+    </section>
+
+    <!-- 2. GPS -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <h2 class="text-xs font-bold text-indigo-400">2. الموقع الجغرافي (GPS)</h2>
+      <div id="gps-box" class="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs space-y-1">
+        <p id="gps-status" class="font-bold text-amber-400">لم يتم تحديد الموقع بعد</p>
+        <p id="gps-detail" class="text-slate-400"></p>
+      </div>
+      <button onclick="startGPS(true)" class="w-full bg-indigo-600 text-white text-sm font-bold py-2.5 rounded-xl">📍 تحديد موقعي الآن</button>
+      <details class="text-xs text-slate-400">
+        <summary class="cursor-pointer text-slate-300">إدخال الإحداثيات يدوياً</summary>
+        <div class="flex gap-2 mt-2">
+          <input id="manualCoords" type="text" dir="ltr" placeholder="24.7136, 46.6753 أو رابط Google Maps" class="inp" />
+          <button onclick="applyManualCoords()" class="bg-slate-700 text-white px-3 rounded-xl whitespace-nowrap">اعتماد</button>
+        </div>
+        <p class="mt-1 text-[11px]">يمكن لصق رابط خرائط Google (مثل ‎@lat,lng أو ‎?q=lat,lng) أو الإحداثيات بصيغة: خط العرض, خط الطول</p>
+      </details>
+      <p class="text-[11px] text-slate-500">صور الاستوديو: تُقرأ الإحداثيات ووقت الالتقاط من بيانات الصورة (EXIF) إن وُجدت، وإلا يُستخدم موقعك الحالي.</p>
+    </section>
+
+    <!-- 3. Watermark -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold text-indigo-400">3. بصمة الصور (التاريخ والوقت والإحداثيات)</h2>
+        <input type="checkbox" id="wmEnabled" checked class="chk w-5 h-5 cursor-pointer" onchange="onWatermarkChange()" />
+      </div>
+      <p class="text-[11px] text-slate-400">تُطبع البصمة أسفل كل صورة. عند تعديل اسم المشروع أو الموقع تُحدَّث البصمة عند مغادرة الحقل أو بالضغط على زر التحديث.</p>
+      <div id="wm-fields" class="grid grid-cols-2 gap-2 text-xs text-slate-300">
+        <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="wmDate" checked onchange="onWatermarkChange()" /> التاريخ</label>
+        <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="wmTime" checked onchange="onWatermarkChange()" /> الوقت</label>
+        <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="wmCoords" checked onchange="onWatermarkChange()" /> الإحداثيات</label>
+        <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="wmProject" checked onchange="onWatermarkChange()" /> اسم المشروع</label>
+        <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="wmLocation" onchange="onWatermarkChange()" /> اسم الموقع</label>
+      </div>
+      <div class="flex items-center justify-between pt-1">
+        <button type="button" onclick="refreshWatermarksNow(true)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl">🔄 تحديث البصمة على الصور</button>
+        <span id="wm-feedback" class="text-[11px] text-emerald-400 hidden">✔ تم تحديث البصمة</span>
+      </div>
+    </section>
+
+    <!-- 4. Template -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <h2 class="text-xs font-bold text-indigo-400">4. قالب التقرير (ورقة شعار الشركة)</h2>
+
+      <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2">
+        <p class="text-xs font-bold text-slate-200">خلفية الصفحات (لـ PDF والطباعة و Word)</p>
+        <p class="text-[11px] text-slate-400">ارفع ورقة الشعار كصورة (PNG / JPG) أو ملف PDF — تُستخدم كخلفية لكل صفحة.</p>
+        <div id="lh-preview" class="hidden"><img id="lh-img" class="w-24 border border-slate-700 rounded bg-white" /></div>
+        <div class="flex gap-2">
+          <label class="flex-1 text-center bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold py-2 rounded-xl cursor-pointer">
+            رفع خلفية (صورة / PDF)
+            <input type="file" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleLetterheadUpload(event)" />
+          </label>
+          <button id="lh-remove" onclick="removeLetterhead()" class="hidden text-xs text-red-400 px-3 rounded-xl border border-red-900/50">حذف</button>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2">
+        <p class="text-xs font-bold text-slate-200">قالب Word ‏(.docx)</p>
+        <p class="text-[11px] text-slate-400">ارفع ملف وورد بورقة الشركة (الشعار في الترويسة/التذييل). عند التصدير إلى Word يُبنى التقرير داخل هذا الملف مع الحفاظ على ترويسته وتذييله وهوامشه.</p>
+        <p id="docx-name" class="text-[11px] text-emerald-400 hidden"></p>
+        <label id="docx-keep-wrap" class="hidden items-center gap-2 text-[11px] text-slate-300"><input type="checkbox" class="chk" id="docxKeepBody" onchange="saveSettings()" /> الإبقاء على نص القالب الموجود في متن الملف (أعلى التقرير)</label>
+        <div class="flex gap-2">
+          <label class="flex-1 text-center bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold py-2 rounded-xl cursor-pointer">
+            رفع قالب Word
+            <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="handleDocxUpload(event)" />
+          </label>
+          <button id="docx-remove" onclick="removeDocx()" class="hidden text-xs text-red-400 px-3 rounded-xl border border-red-900/50">حذف</button>
+        </div>
+        <p class="text-[10px] text-slate-500">لاستخدام نفس ورقة الوورد في PDF: احفظها من Word بصيغة PDF وارفعها كخلفية أعلاه.</p>
+      </div>
+
+      <details class="text-xs text-slate-300">
+        <summary class="cursor-pointer font-bold text-slate-200">تعديل تنسيق القالب</summary>
+        <div class="space-y-3 mt-3">
+          <div><label class="block text-[11px] text-slate-400 mb-1">عنوان التقرير الافتراضي</label>
+            <input id="tplTitle" class="inp" placeholder="تقرير فحص ميداني" oninput="saveSettings()" /></div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="block text-[11px] text-slate-400 mb-1">عدد الصور في الصفحة</label>
+              <select id="tplPerPage" class="inp" onchange="saveSettings()">
+                <option value="1">1</option><option value="2" selected>2</option><option value="4">4</option><option value="6">6</option>
+              </select></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">لون العناوين</label>
+              <input id="tplAccent" type="color" value="#1e3a8a" class="inp h-[42px] p-1" oninput="saveSettings()" /></div>
+          </div>
+          <p class="text-[11px] text-slate-400">الهوامش (مم) — اجعلها كافية حتى لا يغطي المحتوى شعار الترويسة والتذييل:</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div><label class="block text-[11px] text-slate-400 mb-1">أعلى</label><input id="tplMt" type="number" min="0" max="120" value="40" class="inp" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">أسفل</label><input id="tplMb" type="number" min="0" max="120" value="30" class="inp" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">الجانبين</label><input id="tplMs" type="number" min="0" max="60" value="15" class="inp" oninput="saveSettings()" /></div>
+          </div>
+          <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplShowInfo" checked onchange="saveSettings()" /> إظهار جدول معلومات المشروع</label>
+          <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplShowMeta" checked onchange="saveSettings()" /> كتابة التاريخ والإحداثيات أسفل كل صورة</label>
+          <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplPageNo" checked onchange="saveSettings()" /> ترقيم الصفحات</label>
+          <p class="text-[10px] text-slate-500">تُحفظ إعدادات القالب والخلفية على هذا الجهاز تلقائياً.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- Capture -->
+    <section class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col items-center justify-center bg-indigo-600 text-white rounded-2xl p-4 cursor-pointer shadow-lg">
+          <span class="text-2xl mb-1">📸</span><span class="text-xs font-bold">تصوير بالكاميرا</span>
+          <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event, 'camera')" class="hidden" />
+        </label>
+        <label class="flex flex-col items-center justify-center bg-slate-800 text-slate-200 border border-slate-700 rounded-2xl p-4 cursor-pointer">
+          <span class="text-2xl mb-1">🖼️</span><span class="text-xs font-bold">من الاستوديو</span>
+          <input type="file" accept="image/*" multiple onchange="handleImageUpload(event, 'gallery')" class="hidden" />
+        </label>
+      </div>
+      <p id="busy" class="hidden text-center text-xs text-amber-400">جاري معالجة الصور...</p>
+    </section>
+
+    <section class="space-y-4" id="photos-container"></section>
+  </main>
+
+  <footer class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 p-3 z-30">
+    <div class="max-w-md mx-auto flex items-center gap-2">
+      <div class="text-xs text-slate-400 whitespace-nowrap">الصور: <span id="photo-count" class="font-bold text-white">0</span></div>
+      <button onclick="openPreview()" class="flex-1 bg-emerald-600 text-white font-bold py-3 px-2 rounded-xl text-xs shadow-lg">📄 معاينة / PDF</button>
+      <button onclick="exportDocx()" class="flex-1 bg-blue-700 text-white font-bold py-3 px-2 rounded-xl text-xs shadow-lg">📝 تصدير Word</button>
+    </div>
+  </footer>
+
+  <!-- Report preview / print -->
+  <div id="preview">
+    <div class="preview-bar sticky top-0 z-10 bg-slate-900/95 border-b border-slate-800 p-3 flex gap-2 justify-center">
+      <button onclick="window.print()" class="bg-emerald-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl">🖨️ طباعة / حفظ PDF</button>
+      <button onclick="exportDocx()" class="bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl">📝 Word</button>
+      <button onclick="closePreview()" class="bg-slate-700 text-white text-xs px-4 py-2.5 rounded-xl">إغلاق</button>
+    </div>
+    <div id="pages" class="py-4"></div>
+  </div>
+
+  <canvas id="watermarkCanvas" class="hidden"></canvas>
+  <!-- تأكد من وجود app.js في نفس مجلد index.html عند النشر على Netlify -->
+  <script src="app.js"></script>
+</body>
+</html>
