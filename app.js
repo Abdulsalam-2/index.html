@@ -37,11 +37,25 @@ const DB = {
   },
 };
 
-const SETTING_IDS = ['tplTitle', 'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
-  'wmEnabled', 'wmDate', 'wmTime', 'wmCoords', 'wmProject', 'wmLocation'];
+const DEFAULT_LABELS = {
+  lblDate: 'التاريخ',
+  lblLocation: 'الموقع',
+  lblCoords: 'الإحداثيات',
+  lblPreparedBy: 'مُعِدّ التقرير',
+  lblPhotoCount: 'عدد الصور',
+  lblNotesTitle: 'ملاحظات عامة:',
+  lblNoCaption: 'بدون ملاحظات',
+};
+
+const SETTING_IDS = [
+  'tplTitle', 'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
+  'wmEnabled', 'wmDate', 'wmTime', 'wmCoords', 'wmProject', 'wmLocation',
+  'lblDate', 'lblLocation', 'lblCoords', 'lblPreparedBy', 'lblPhotoCount', 'lblNotesTitle', 'lblNoCaption',
+];
 
 function readSettings() {
   const num = (id, d) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? Math.max(0, v) : d; };
+  const txt = (id, d) => { const el = $(id); const v = el ? el.value.trim() : ''; return v || d; };
   return {
     title: $('tplTitle').value.trim(),
     perPage: parseInt($('tplPerPage').value, 10) || 2,
@@ -49,7 +63,22 @@ function readSettings() {
     mt: num('tplMt', 40), mb: num('tplMb', 30), ms: num('tplMs', 15),
     showInfo: $('tplShowInfo').checked, showMeta: $('tplShowMeta').checked, pageNo: $('tplPageNo').checked,
     keepBody: $('docxKeepBody').checked,
+    lblDate: txt('lblDate', DEFAULT_LABELS.lblDate),
+    lblLocation: txt('lblLocation', DEFAULT_LABELS.lblLocation),
+    lblCoords: txt('lblCoords', DEFAULT_LABELS.lblCoords),
+    lblPreparedBy: txt('lblPreparedBy', DEFAULT_LABELS.lblPreparedBy),
+    lblPhotoCount: txt('lblPhotoCount', DEFAULT_LABELS.lblPhotoCount),
+    lblNotesTitle: txt('lblNotesTitle', DEFAULT_LABELS.lblNotesTitle),
+    lblNoCaption: txt('lblNoCaption', DEFAULT_LABELS.lblNoCaption),
   };
+}
+
+function resetFixedLabels() {
+  Object.entries(DEFAULT_LABELS).forEach(([id, val]) => {
+    const el = $(id);
+    if (el) el.value = val;
+  });
+  saveSettings();
 }
 
 let saveTimer = null;
@@ -57,7 +86,11 @@ function saveSettings() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const o = {};
-    SETTING_IDS.forEach((id) => { const el = $(id); o[id] = el.type === 'checkbox' ? el.checked : el.value; });
+    SETTING_IDS.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      o[id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
     DB.set('settings', o).catch(() => {});
   }, 300);
 }
@@ -65,7 +98,16 @@ function saveSettings() {
 async function loadSettings() {
   try {
     const o = await DB.get('settings');
-    if (o) SETTING_IDS.forEach((id) => { if (id in o) { const el = $(id); if (el.type === 'checkbox') el.checked = !!o[id]; else el.value = o[id]; } });
+    if (o) {
+      SETTING_IDS.forEach((id) => {
+        if (id in o) {
+          const el = $(id);
+          if (!el) return;
+          if (el.type === 'checkbox') el.checked = !!o[id];
+          else el.value = o[id];
+        }
+      });
+    }
     letterhead = (await DB.get('letterhead')) || null;
     docxTemplate = (await DB.get('docxTemplate')) || null;
   } catch (e) { console.warn('storage unavailable', e); }
@@ -106,14 +148,13 @@ function gpsErrorMessage(err) {
 
 function onPosition(pos) {
   const c = pos.coords;
-  // keep a better (more accurate) recent fix rather than overwriting with a worse one
   if (gps && gps.source === 'gps' && Date.now() - gps.ts < 15000 && c.accuracy > gps.acc * 1.5) return;
   gps = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, ts: Date.now(), source: 'gps' };
   showGps();
 }
 
 function onPositionError(err) {
-  if (gps) return; // we already have a fix; ignore transient errors
+  if (gps) return;
   const [t, d] = gpsErrorMessage(err);
   setGpsStatus(t, 'text-red-400', d);
 }
@@ -128,13 +169,11 @@ function startGPS(userInitiated) {
     return;
   }
   if (!gps || userInitiated) setGpsStatus('جاري تحديد موقعك...', 'text-amber-400', 'إذا ظهرت رسالة طلب الإذن اختر "سماح".');
-  // quick coarse fix first, then precise continuous tracking
   navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, timeout: 30000, maximumAge: 5000 });
 }
 
-// Get a position suitable for a photo taken right now
 function getFreshPosition(timeoutMs = 8000) {
   if (gps && (gps.source === 'manual' || Date.now() - gps.ts < 60000)) return Promise.resolve(gps);
   if (!('geolocation' in navigator) || !window.isSecureContext) return Promise.resolve(gps);
@@ -162,11 +201,11 @@ function parseCoords(text) {
 
   const pairRe = '(-?\\d{1,2}(?:\\.\\d+)?)\\s*[,،\\s]+\\s*(-?\\d{1,3}(?:\\.\\d+)?)';
   const patterns = [
-    new RegExp(`@${pairRe}`),                                      // Google Maps @lat,lng
-    new RegExp(`[?&](?:q|query|ll|center|destination)=${pairRe}`, 'i'), // ?q=lat,lng or ?ll=lat,lng
-    new RegExp(`!3d(-?\\d{1,2}(?:\\.\\d+)?)!4d(-?\\d{1,3}(?:\\.\\d+)?)`), // Google Maps place data !3dLAT!4dLNG
-    new RegExp(`^\\s*${pairRe}\\s*$`),                              // Direct "lat, lng"
-    new RegExp(pairRe),                                             // Fallback pair in text
+    new RegExp(`@${pairRe}`),
+    new RegExp(`[?&](?:q|query|ll|center|destination)=${pairRe}`, 'i'),
+    new RegExp(`!3d(-?\\d{1,2}(?:\\.\\d+)?)!4d(-?\\d{1,3}(?:\\.\\d+)?)`),
+    new RegExp(`^\\s*${pairRe}\\s*$`),
+    new RegExp(pairRe),
   ];
 
   for (const re of patterns) {
@@ -489,17 +528,19 @@ function reportInfo() {
   const rows = [];
   const loc = $('locationName').value.trim();
   const by = $('preparedBy').value.trim();
-  rows.push(['التاريخ', fmtDate(new Date())]);
-  if (loc) rows.push(['الموقع', loc]);
+  rows.push([s.lblDate, fmtDate(new Date())]);
+  if (loc) rows.push([s.lblLocation, loc]);
   const withCoords = reportPhotos.find((p) => p.lat != null);
   const c = gps || withCoords;
-  if (c) rows.push(['الإحداثيات', fmtCoords(c.lat, c.lng)]);
-  if (by) rows.push(['مُعِدّ التقرير', by]);
-  rows.push(['عدد الصور', String(reportPhotos.length)]);
+  if (c) rows.push([s.lblCoords, fmtCoords(c.lat, c.lng)]);
+  if (by) rows.push([s.lblPreparedBy, by]);
+  rows.push([s.lblPhotoCount, String(reportPhotos.length)]);
   return {
     title: $('projectName').value.trim() || s.title || 'تقرير فحص ميداني',
     rows,
     notes: $('generalNotes').value.trim(),
+    notesTitle: s.lblNotesTitle,
+    noCaption: s.lblNoCaption,
   };
 }
 
@@ -530,13 +571,13 @@ function buildPages() {
       if (s.showInfo) {
         head += `<table class="info">${info.rows.map(([k, v]) => `<tr><td class="k" style="color:${s.accent}">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`;
       }
-      if (info.notes) head += `<div class="notes"><b style="color:${s.accent}">ملاحظات عامة: </b>${esc(info.notes)}</div>`;
+      if (info.notes) head += `<div class="notes"><b style="color:${s.accent}">${esc(info.notesTitle)} </b>${esc(info.notes)}</div>`;
     }
     const cells = chunk.map((p, i) => {
       const n = pi * per + i + 1;
       return `<div class="cell">
         <div class="imgbox"><img src="${p.rendered}" /></div>
-        <div class="cap"><span style="color:${s.accent}">${n}.</span> ${esc(p.caption || 'بدون ملاحظات')}</div>
+        <div class="cap"><span style="color:${s.accent}">${n}.</span> ${esc(p.caption || info.noCaption)}</div>
         ${s.showMeta ? `<div class="meta"><span dir="ltr">${esc(photoMeta(p))}</span></div>` : ''}
       </div>`;
     }).join('');
@@ -640,14 +681,13 @@ async function imageSize(url) {
   }
 }
 
-// Builds body XML for the report. addImage(bytes) -> rId
 async function buildDocxBody(addImage, usableW, usableH, startId) {
   const s = readSettings();
   const info = reportInfo();
   const accent = hexColor(s.accent);
   let xml = wPara(wRun(info.title, { b: true, sz: 34, color: accent }), { center: true, after: 200 });
   if (s.showInfo) xml += wInfoTable(info.rows, usableW, accent) + wPara('', { after: 120 });
-  if (info.notes) xml += wPara(wRun('ملاحظات عامة: ', { b: true, color: accent }) + wRun(info.notes), { after: 200 });
+  if (info.notes) xml += wPara(wRun(info.notesTitle + ' ', { b: true, color: accent }) + wRun(info.notes), { after: 200 });
 
   const maxH = s.perPage === 1 ? usableH * 0.78 : s.perPage === 2 ? usableH * 0.38 : usableH * 0.3;
   const maxW = s.perPage >= 4 ? usableW * 0.75 : usableW;
@@ -660,7 +700,7 @@ async function buildDocxBody(addImage, usableW, usableH, startId) {
     const rid = addImage(dataUrlToBytes(p.rendered), 'jpeg');
     const pageBreak = s.perPage === 1 && i > 0;
     xml += wPara(wInlineImage(rid, cx, cy, id++), { center: true, keepNext: true, after: 60, before: pageBreak ? 0 : 120, pageBreakBefore: pageBreak });
-    xml += wPara(wRun(`${i + 1}. `, { b: true, color: accent }) + wRun(p.caption || 'بدون ملاحظات', { b: true }), { keepNext: s.showMeta, after: s.showMeta ? 0 : 160 });
+    xml += wPara(wRun(`${i + 1}. `, { b: true, color: accent }) + wRun(p.caption || info.noCaption, { b: true }), { keepNext: s.showMeta, after: s.showMeta ? 0 : 160 });
     if (s.showMeta) xml += wPara(wRun(photoMeta(p), { sz: 16, color: '475569', ltr: true }), { after: 160 });
   }
   return xml;
@@ -712,12 +752,40 @@ async function docxFromTemplate() {
   const doc = new DOMParser().parseFromString(docXml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('تعذر قراءة القالب');
   const root = doc.documentElement;
-  Object.entries(NS).forEach(([k, v]) => { if (!root.getAttribute('xmlns:' + k)) root.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:' + k, v); });
+  Object.entries(NS).forEach(([k, v]) => {
+    if (!root.getAttribute('xmlns:' + k)) root.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:' + k, v);
+  });
   const body = doc.getElementsByTagNameNS(NS.w, 'body')[0];
 
-  // page geometry from the final section
+  // Collect all section properties (including those embedded inside paragraphs) so header/footer references are never lost
+  const allSectPrs = Array.from(body.getElementsByTagNameNS(NS.w, 'sectPr'));
   let sect = null;
-  for (let n = body.lastChild; n; n = n.previousSibling) { if (n.nodeType === 1) { if (n.localName === 'sectPr') sect = n; break; } }
+  for (let n = body.lastChild; n; n = n.previousSibling) {
+    if (n.nodeType === 1 && n.localName === 'sectPr') { sect = n; break; }
+  }
+  if (!sect && allSectPrs.length) {
+    sect = allSectPrs[allSectPrs.length - 1].cloneNode(true);
+    body.appendChild(sect);
+  }
+  // Ensure headerReference / footerReference / titlePg from earlier sections are preserved on the active sectPr
+  if (sect && allSectPrs.length > 1) {
+    const firstSect = allSectPrs[0];
+    if (!sect.getElementsByTagNameNS(NS.w, 'headerReference').length) {
+      Array.from(firstSect.getElementsByTagNameNS(NS.w, 'headerReference')).forEach((hr) => {
+        sect.insertBefore(hr.cloneNode(true), sect.firstChild);
+      });
+    }
+    if (!sect.getElementsByTagNameNS(NS.w, 'footerReference').length) {
+      Array.from(firstSect.getElementsByTagNameNS(NS.w, 'footerReference')).forEach((fr) => {
+        sect.insertBefore(fr.cloneNode(true), sect.firstChild);
+      });
+    }
+    if (!sect.getElementsByTagNameNS(NS.w, 'titlePg').length) {
+      const tp = firstSect.getElementsByTagNameNS(NS.w, 'titlePg')[0];
+      if (tp) sect.appendChild(tp.cloneNode(true));
+    }
+  }
+
   let pgW = 11906, pgH = 16838, mL = 1440, mR = 1440, mT = 1440, mB = 1440;
   if (sect) {
     const sz = sect.getElementsByTagNameNS(NS.w, 'pgSz')[0];
@@ -729,7 +797,6 @@ async function docxFromTemplate() {
   const usableW = Math.max(3000, pgW - mL - mR);
   const usableH = Math.max(4000, pgH - mT - mB);
 
-  // remove existing body content (unless keeping it)
   if (!s.keepBody) {
     Array.from(body.childNodes).forEach((n) => { if (n !== sect) body.removeChild(n); });
   }
@@ -761,7 +828,6 @@ async function docxFromScratch() {
   const s = readSettings();
   const zip = new JSZip();
   const pgW = 11906, pgH = 16838;
-  // when no letterhead, use normal Word margins
   const mT = mm2tw(letterhead ? s.mt : 20), mB = mm2tw(letterhead ? s.mb : 20), mS = mm2tw(letterhead ? s.ms : 18);
   const usableW = pgW - mS * 2, usableH = pgH - mT - mB;
   let rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
@@ -791,14 +857,13 @@ async function docxFromScratch() {
   zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS_DECL}><w:body>${bodyXml}${sectPr}</w:body></w:document>`);
   zip.file('word/_rels/document.xml.rels', rels);
   zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
-  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${ctOverrides}</Types>`);
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${ctOverrides}</Types>`);
   return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
 
 /* ===================== Init ===================== */
 window.addEventListener('load', async () => {
   await loadSettings();
-  // Auto-start if permission already granted; otherwise still request (user can retry with the button)
   try {
     if (navigator.permissions && navigator.permissions.query) {
       const st = await navigator.permissions.query({ name: 'geolocation' });

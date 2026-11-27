@@ -35,11 +35,12 @@
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
       font-family: 'Cairo', sans-serif;
       transform-origin: top center;
+      box-sizing: border-box;
     }
-    .page .lh { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; z-index:0; }
-    .page .content { position:absolute; z-index:1; display:flex; flex-direction:column; }
+    .page .lh { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; z-index:0; pointer-events:none; }
+    .page .content { position:absolute; z-index:1; display:flex; flex-direction:column; box-sizing:border-box; }
     .page .grid-photos { flex:1; display:grid; gap:4mm; min-height:0; }
-    .page .cell { display:flex; flex-direction:column; min-height:0; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; background:rgba(255,255,255,.85); }
+    .page .cell { display:flex; flex-direction:column; min-height:0; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; background:rgba(255,255,255,.88); }
     .page .cell .imgbox { flex:1; min-height:0; position:relative; }
     .page .cell .imgbox img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
     .page .cap { font-size:10pt; font-weight:600; margin-top:1.5mm; line-height:1.35; overflow-wrap:anywhere; }
@@ -47,19 +48,61 @@
     .page .pno { font-size:8pt; color:#64748b; text-align:center; margin-top:2mm; }
     .page table.info { width:100%; border-collapse:collapse; font-size:9.5pt; margin-bottom:3mm; }
     .page table.info td { border:1px solid #cbd5e1; padding:1mm 2mm; }
-    .page table.info td.k { background:rgba(241,245,249,.9); font-weight:700; width:28%; }
-    .page .notes { font-size:9.5pt; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; margin-bottom:3mm; background:rgba(248,250,252,.9); max-height:30mm; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .page table.info td.k { background:rgba(241,245,249,.92); font-weight:700; width:28%; }
+    .page .notes { font-size:9.5pt; border:1px solid #cbd5e1; border-radius:2mm; padding:2mm; margin-bottom:3mm; background:rgba(248,250,252,.92); max-height:30mm; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; }
 
-    @page { size: A4; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
     @media print {
-      html, body { background:#fff !important; padding:0 !important; margin:0 !important; }
+      html, body {
+        width: 210mm !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+      }
       body > *:not(#preview) { display:none !important; }
-      #preview, #preview.open { display:block !important; position:static !important; background:none !important; overflow:visible !important; }
+      #preview, #preview.open {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        width: 210mm !important;
+        background: none !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
       #preview .preview-bar { display:none !important; }
-      #pages { padding:0 !important; }
-      .page-wrap { width:auto !important; height:auto !important; margin:0 !important; }
-      .page { transform:none !important; zoom:1 !important; margin:0 !important; box-shadow:none !important; break-after:page; page-break-after:always; }
-      .page:last-child { break-after:auto; page-break-after:auto; }
+      #pages { padding: 0 !important; margin: 0 !important; }
+      .page-wrap {
+        width: 210mm !important;
+        height: 296.5mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        break-after: page !important;
+        page-break-after: always !important;
+      }
+      .page-wrap:last-child {
+        break-after: auto !important;
+        page-break-after: auto !important;
+      }
+      .page {
+        width: 210mm !important;
+        height: 296.5mm !important;
+        max-height: 296.5mm !important;
+        transform: none !important;
+        zoom: 1 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+      }
+      .page .lh {
+        width: 210mm !important;
+        height: 296.5mm !important;
+        object-fit: fill !important;
+      }
     }
   </style>
 </head>
@@ -129,13 +172,13 @@
       </div>
     </section>
 
-    <!-- 4. Template -->
+    <!-- 4. Template & Fixed Labels -->
     <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-      <h2 class="text-xs font-bold text-indigo-400">4. قالب التقرير (ورقة شعار الشركة)</h2>
+      <h2 class="text-xs font-bold text-indigo-400">4. قالب التقرير والفورمة الثابتة</h2>
 
       <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2">
         <p class="text-xs font-bold text-slate-200">خلفية الصفحات (لـ PDF والطباعة و Word)</p>
-        <p class="text-[11px] text-slate-400">ارفع ورقة الشعار كصورة (PNG / JPG) أو ملف PDF — تُستخدم كخلفية لكل صفحة.</p>
+        <p class="text-[11px] text-slate-400">ارفع ورقة الشعار كصورة (PNG / JPG) أو ملف PDF — تُستخدم كخلفية كاملة لكل صفحة A4.</p>
         <div id="lh-preview" class="hidden"><img id="lh-img" class="w-24 border border-slate-700 rounded bg-white" /></div>
         <div class="flex gap-2">
           <label class="flex-1 text-center bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold py-2 rounded-xl cursor-pointer">
@@ -148,7 +191,7 @@
 
       <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2">
         <p class="text-xs font-bold text-slate-200">قالب Word ‏(.docx)</p>
-        <p class="text-[11px] text-slate-400">ارفع ملف وورد بورقة الشركة (الشعار في الترويسة/التذييل). عند التصدير إلى Word يُبنى التقرير داخل هذا الملف مع الحفاظ على ترويسته وتذييله وهوامشه.</p>
+        <p class="text-[11px] text-slate-400">ارفع ملف وورد بورقة الشركة (الشعار في الترويسة/التذييل). عند التصدير إلى Word يُحافظ على ترويسة القالب وتذييله وهوامشه بالكامل.</p>
         <p id="docx-name" class="text-[11px] text-emerald-400 hidden"></p>
         <label id="docx-keep-wrap" class="hidden items-center gap-2 text-[11px] text-slate-300"><input type="checkbox" class="chk" id="docxKeepBody" onchange="saveSettings()" /> الإبقاء على نص القالب الموجود في متن الملف (أعلى التقرير)</label>
         <div class="flex gap-2">
@@ -158,14 +201,38 @@
           </label>
           <button id="docx-remove" onclick="removeDocx()" class="hidden text-xs text-red-400 px-3 rounded-xl border border-red-900/50">حذف</button>
         </div>
-        <p class="text-[10px] text-slate-500">لاستخدام نفس ورقة الوورد في PDF: احفظها من Word بصيغة PDF وارفعها كخلفية أعلاه.</p>
       </div>
 
+      <!-- Editable fixed form texts -->
       <details class="text-xs text-slate-300">
-        <summary class="cursor-pointer font-bold text-slate-200">تعديل تنسيق القالب</summary>
+        <summary class="cursor-pointer font-bold text-slate-200">تعديل الكلام الرئيسي والفورمة الثابتة للتقرير</summary>
+        <div class="space-y-2.5 mt-3 bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <p class="text-[11px] text-slate-400">عدّل المسميات والنصوص الثابتة التي تظهر في التقرير النهائي (PDF و Word) وتُحفظ تلقائياً:</p>
+          <div><label class="block text-[11px] text-slate-400 mb-1">العنوان الرئيسي الافتراضي للتقرير</label>
+            <input id="tplTitle" class="inp text-xs" placeholder="تقرير فحص ميداني" oninput="saveSettings()" /></div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="block text-[11px] text-slate-400 mb-1">مسمى حقل التاريخ</label>
+              <input id="lblDate" class="inp text-xs" value="التاريخ" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">مسمى حقل الموقع</label>
+              <input id="lblLocation" class="inp text-xs" value="الموقع" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">مسمى حقل الإحداثيات</label>
+              <input id="lblCoords" class="inp text-xs" value="الإحداثيات" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">مسمى مُعِدّ التقرير</label>
+              <input id="lblPreparedBy" class="inp text-xs" value="مُعِدّ التقرير" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">مسمى عدد الصور</label>
+              <input id="lblPhotoCount" class="inp text-xs" value="عدد الصور" oninput="saveSettings()" /></div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">عنوان الملاحظات العامة</label>
+              <input id="lblNotesTitle" class="inp text-xs" value="ملاحظات عامة:" oninput="saveSettings()" /></div>
+          </div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">النص الافتراضي عند عدم وجود ملاحظة للصورة</label>
+            <input id="lblNoCaption" class="inp text-xs" value="بدون ملاحظات" oninput="saveSettings()" /></div>
+          <button type="button" onclick="resetFixedLabels()" class="text-[11px] text-indigo-300 underline">استعادة المسميات الافتراضية</button>
+        </div>
+      </details>
+
+      <details class="text-xs text-slate-300">
+        <summary class="cursor-pointer font-bold text-slate-200">تعديل تنسيق القالب والهوامش</summary>
         <div class="space-y-3 mt-3">
-          <div><label class="block text-[11px] text-slate-400 mb-1">عنوان التقرير الافتراضي</label>
-            <input id="tplTitle" class="inp" placeholder="تقرير فحص ميداني" oninput="saveSettings()" /></div>
           <div class="grid grid-cols-2 gap-2">
             <div><label class="block text-[11px] text-slate-400 mb-1">عدد الصور في الصفحة</label>
               <select id="tplPerPage" class="inp" onchange="saveSettings()">
@@ -183,7 +250,7 @@
           <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplShowInfo" checked onchange="saveSettings()" /> إظهار جدول معلومات المشروع</label>
           <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplShowMeta" checked onchange="saveSettings()" /> كتابة التاريخ والإحداثيات أسفل كل صورة</label>
           <label class="flex items-center gap-2"><input type="checkbox" class="chk" id="tplPageNo" checked onchange="saveSettings()" /> ترقيم الصفحات</label>
-          <p class="text-[10px] text-slate-500">تُحفظ إعدادات القالب والخلفية على هذا الجهاز تلقائياً.</p>
+          <p class="text-[10px] text-slate-500">تُحفظ إعدادات القالب والخلفية والفورمة على هذا الجهاز تلقائياً.</p>
         </div>
       </details>
     </section>
@@ -225,7 +292,6 @@
   </div>
 
   <canvas id="watermarkCanvas" class="hidden"></canvas>
-  <!-- تأكد من وجود app.js في نفس مجلد index.html عند النشر على Netlify -->
   <script src="app.js"></script>
 </body>
 </html>
