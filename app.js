@@ -48,7 +48,7 @@ const DEFAULT_LABELS = {
 };
 
 const SETTING_IDS = [
-  'tplTitle', 'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
+  'projectName', 'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplRepeatHeader', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
   'wmEnabled', 'wmDate', 'wmTime', 'wmCoords', 'wmProject', 'wmLocation',
   'lblDate', 'lblLocation', 'lblCoords', 'lblPreparedBy', 'lblPhotoCount', 'lblNotesTitle', 'lblNoCaption',
 ];
@@ -57,11 +57,13 @@ function readSettings() {
   const num = (id, d) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? Math.max(0, v) : d; };
   const txt = (id, d) => { const el = $(id); const v = el ? el.value.trim() : ''; return v || d; };
   return {
-    title: $('tplTitle').value.trim(),
     perPage: parseInt($('tplPerPage').value, 10) || 2,
     accent: $('tplAccent').value || '#1e3a8a',
-    mt: num('tplMt', 40), mb: num('tplMb', 30), ms: num('tplMs', 15),
-    showInfo: $('tplShowInfo').checked, showMeta: $('tplShowMeta').checked, pageNo: $('tplPageNo').checked,
+    mt: num('tplMt', 42), mb: num('tplMb', 32), ms: num('tplMs', 15),
+    showInfo: $('tplShowInfo').checked,
+    repeatHeader: $('tplRepeatHeader').checked,
+    showMeta: $('tplShowMeta').checked,
+    pageNo: $('tplPageNo').checked,
     keepBody: $('docxKeepBody').checked,
     lblDate: txt('lblDate', DEFAULT_LABELS.lblDate),
     lblLocation: txt('lblLocation', DEFAULT_LABELS.lblLocation),
@@ -423,7 +425,7 @@ function renderPhotos() {
 function clearAllData() {
   if (confirm('هل تريد البدء بتقرير جديد؟ (يتم الإبقاء على القالب واسم مُعِدّ التقرير)')) {
     reportPhotos = [];
-    ['projectName', 'locationName', 'generalNotes'].forEach((id) => { $(id).value = ''; });
+    ['locationName', 'generalNotes'].forEach((id) => { $(id).value = ''; });
     renderPhotos();
   }
 }
@@ -536,7 +538,7 @@ function reportInfo() {
   if (by) rows.push([s.lblPreparedBy, by]);
   rows.push([s.lblPhotoCount, String(reportPhotos.length)]);
   return {
-    title: $('projectName').value.trim() || s.title || 'تقرير فحص ميداني',
+    title: $('projectName').value.trim() || 'تقرير فحص ميداني',
     rows,
     notes: $('generalNotes').value.trim(),
     notesTitle: s.lblNotesTitle,
@@ -566,12 +568,12 @@ function buildPages() {
 
   const html = chunks.map((chunk, pi) => {
     let head = '';
-    if (pi === 0) {
-      head += `<h1 style="color:${s.accent};font-size:17pt;font-weight:700;margin:0 0 3mm 0;text-align:center">${esc(info.title)}</h1>`;
+    if (pi === 0 || s.repeatHeader) {
+      head += `<h1 style="color:${s.accent};font-size:16pt;font-weight:700;margin:0 0 2.5mm 0;text-align:center">${esc(info.title)}</h1>`;
       if (s.showInfo) {
         head += `<table class="info">${info.rows.map(([k, v]) => `<tr><td class="k" style="color:${s.accent}">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`;
       }
-      if (info.notes) head += `<div class="notes"><b style="color:${s.accent}">${esc(info.notesTitle)} </b>${esc(info.notes)}</div>`;
+      if (info.notes && pi === 0) head += `<div class="notes"><b style="color:${s.accent}">${esc(info.notesTitle)} </b>${esc(info.notes)}</div>`;
     }
     const cells = chunk.map((p, i) => {
       const n = pi * per + i + 1;
@@ -665,10 +667,10 @@ function wInlineImage(rid, cx, cy, id) {
 
 function wInfoTable(rows, widthTw, accent) {
   const k = Math.round(widthTw * 0.3), v = widthTw - k;
-  const b = 'w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"';
+  const b = 'w:val="single" w:sz="4" w:space="0" w:color="94A3B8"';
   const cell = (w, content, fill) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}</w:tcPr>${content}</w:tc>`;
   return `<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="${widthTw}" w:type="dxa"/><w:tblBorders><w:top ${b}/><w:left ${b}/><w:bottom ${b}/><w:right ${b}/><w:insideH ${b}/><w:insideV ${b}/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${k}"/><w:gridCol w:w="${v}"/></w:tblGrid>` +
-    rows.map(([kk, vv]) => `<w:tr>${cell(k, wPara(wRun(kk, { b: true, color: accent, sz: 20 }), { after: 0 }), 'F1F5F9')}${cell(v, wPara(wRun(vv, { sz: 20 }), { after: 0 }), '')}</w:tr>`).join('') +
+    rows.map(([kk, vv]) => `<w:tr>${cell(k, wPara(wRun(kk, { b: true, color: accent, sz: 20 }), { after: 0 }), 'F1F5F9')}${cell(v, wPara(wRun(vv, { sz: 20, color: '0F172A' }), { after: 0 }), '')}</w:tr>`).join('') +
     `</w:tbl>`;
 }
 
@@ -687,7 +689,7 @@ async function buildDocxBody(addImage, usableW, usableH, startId) {
   const accent = hexColor(s.accent);
   let xml = wPara(wRun(info.title, { b: true, sz: 34, color: accent }), { center: true, after: 200 });
   if (s.showInfo) xml += wInfoTable(info.rows, usableW, accent) + wPara('', { after: 120 });
-  if (info.notes) xml += wPara(wRun(info.notesTitle + ' ', { b: true, color: accent }) + wRun(info.notes), { after: 200 });
+  if (info.notes) xml += wPara(wRun(info.notesTitle + ' ', { b: true, color: accent }) + wRun(info.notes, { color: '0F172A' }), { after: 200 });
 
   const maxH = s.perPage === 1 ? usableH * 0.78 : s.perPage === 2 ? usableH * 0.38 : usableH * 0.3;
   const maxW = s.perPage >= 4 ? usableW * 0.75 : usableW;
@@ -700,7 +702,7 @@ async function buildDocxBody(addImage, usableW, usableH, startId) {
     const rid = addImage(dataUrlToBytes(p.rendered), 'jpeg');
     const pageBreak = s.perPage === 1 && i > 0;
     xml += wPara(wInlineImage(rid, cx, cy, id++), { center: true, keepNext: true, after: 60, before: pageBreak ? 0 : 120, pageBreakBefore: pageBreak });
-    xml += wPara(wRun(`${i + 1}. `, { b: true, color: accent }) + wRun(p.caption || info.noCaption, { b: true }), { keepNext: s.showMeta, after: s.showMeta ? 0 : 160 });
+    xml += wPara(wRun(`${i + 1}. `, { b: true, color: accent }) + wRun(p.caption || info.noCaption, { b: true, color: '0F172A' }), { keepNext: s.showMeta, after: s.showMeta ? 0 : 160 });
     if (s.showMeta) xml += wPara(wRun(photoMeta(p), { sz: 16, color: '475569', ltr: true }), { after: 160 });
   }
   return xml;
@@ -749,40 +751,22 @@ async function docxFromTemplate() {
     : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
   let ct = await zip.file('[Content_Types].xml').async('string');
 
+  // Parse as XML while preserving exact original string structure around body & sectPr
   const doc = new DOMParser().parseFromString(docXml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('تعذر قراءة القالب');
-  const root = doc.documentElement;
-  Object.entries(NS).forEach(([k, v]) => {
-    if (!root.getAttribute('xmlns:' + k)) root.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:' + k, v);
-  });
   const body = doc.getElementsByTagNameNS(NS.w, 'body')[0];
 
-  // Collect all section properties (including those embedded inside paragraphs) so header/footer references are never lost
-  const allSectPrs = Array.from(body.getElementsByTagNameNS(NS.w, 'sectPr'));
+  // Find direct child sectPr at end of body
   let sect = null;
   for (let n = body.lastChild; n; n = n.previousSibling) {
     if (n.nodeType === 1 && n.localName === 'sectPr') { sect = n; break; }
   }
-  if (!sect && allSectPrs.length) {
-    sect = allSectPrs[allSectPrs.length - 1].cloneNode(true);
-    body.appendChild(sect);
-  }
-  // Ensure headerReference / footerReference / titlePg from earlier sections are preserved on the active sectPr
-  if (sect && allSectPrs.length > 1) {
-    const firstSect = allSectPrs[0];
-    if (!sect.getElementsByTagNameNS(NS.w, 'headerReference').length) {
-      Array.from(firstSect.getElementsByTagNameNS(NS.w, 'headerReference')).forEach((hr) => {
-        sect.insertBefore(hr.cloneNode(true), sect.firstChild);
-      });
-    }
-    if (!sect.getElementsByTagNameNS(NS.w, 'footerReference').length) {
-      Array.from(firstSect.getElementsByTagNameNS(NS.w, 'footerReference')).forEach((fr) => {
-        sect.insertBefore(fr.cloneNode(true), sect.firstChild);
-      });
-    }
-    if (!sect.getElementsByTagNameNS(NS.w, 'titlePg').length) {
-      const tp = firstSect.getElementsByTagNameNS(NS.w, 'titlePg')[0];
-      if (tp) sect.appendChild(tp.cloneNode(true));
+  // If sectPr was inside a paragraph, extract it cleanly
+  if (!sect) {
+    const embedded = body.getElementsByTagNameNS(NS.w, 'sectPr');
+    if (embedded.length) {
+      sect = embedded[embedded.length - 1].cloneNode(true);
+      body.appendChild(sect);
     }
   }
 
@@ -797,10 +781,6 @@ async function docxFromTemplate() {
   const usableW = Math.max(3000, pgW - mL - mR);
   const usableH = Math.max(4000, pgH - mT - mB);
 
-  if (!s.keepBody) {
-    Array.from(body.childNodes).forEach((n) => { if (n !== sect) body.removeChild(n); });
-  }
-
   let counter = 0;
   const addImage = (bytes, ext) => {
     counter++;
@@ -810,15 +790,27 @@ async function docxFromTemplate() {
     rels = addRelationship(rels, rid, REL_IMG, target);
     return rid;
   };
-  const bodyXml = await buildDocxBody(addImage, usableW, usableH, 9000);
-  const frag = new DOMParser().parseFromString(`<w:root ${NS_DECL}>${bodyXml}</w:root>`, 'application/xml');
-  if (frag.getElementsByTagName('parsererror').length) throw new Error('XML');
-  Array.from(frag.documentElement.childNodes).forEach((n) => body.insertBefore(doc.importNode(n, true), sect));
+  const generatedXml = await buildDocxBody(addImage, usableW, usableH, 9000);
+
+  // Serialize original sectPr intact so Word header/footer rIds & prefixes stay 100% untouched
+  const sectXml = sect ? new XMLSerializer().serializeToString(sect) : '';
+
+  let keptPrefix = '';
+  if (s.keepBody) {
+    const ser = new XMLSerializer();
+    Array.from(body.childNodes).forEach((n) => {
+      if (n !== sect && n.nodeType === 1) keptPrefix += ser.serializeToString(n);
+    });
+  }
+
+  // Replace only the inner contents of <w:body>...</w:body> in the original XML string
+  const newDocXml = docXml.replace(/<w:body\b[^>]*>[\s\S]*<\/w:body>/, (match) => {
+    const openTag = match.slice(0, match.indexOf('>') + 1);
+    return `${openTag}${keptPrefix}${generatedXml}${sectXml}</w:body>`;
+  });
 
   ct = addContentTypeDefault(ct, 'jpeg', 'image/jpeg');
-  let outXml = new XMLSerializer().serializeToString(doc);
-  if (!outXml.startsWith('<?xml')) outXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + outXml;
-  zip.file(docPath, outXml);
+  zip.file(docPath, newDocXml);
   zip.file(relsPath, rels);
   zip.file('[Content_Types].xml', ct);
   return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
