@@ -38,6 +38,7 @@ const DB = {
 };
 
 const DEFAULT_LABELS = {
+  lblRefNo: 'رقم التقرير',
   lblDate: 'التاريخ',
   lblLocation: 'الموقع',
   lblCoords: 'الإحداثيات',
@@ -48,9 +49,10 @@ const DEFAULT_LABELS = {
 };
 
 const SETTING_IDS = [
-  'projectName', 'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplRepeatHeader', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
+  'projectName', 'reportRefNo', 'locationName', 'preparedBy',
+  'tplPerPage', 'tplAccent', 'tplMt', 'tplMb', 'tplMs', 'tplShowInfo', 'tplRepeatHeader', 'tplShowMeta', 'tplPageNo', 'docxKeepBody',
   'wmEnabled', 'wmDate', 'wmTime', 'wmCoords', 'wmProject', 'wmLocation',
-  'lblDate', 'lblLocation', 'lblCoords', 'lblPreparedBy', 'lblPhotoCount', 'lblNotesTitle', 'lblNoCaption',
+  'lblRefNo', 'lblDate', 'lblLocation', 'lblCoords', 'lblPreparedBy', 'lblPhotoCount', 'lblNotesTitle', 'lblNoCaption',
 ];
 
 function readSettings() {
@@ -65,6 +67,7 @@ function readSettings() {
     showMeta: $('tplShowMeta').checked,
     pageNo: $('tplPageNo').checked,
     keepBody: $('docxKeepBody').checked,
+    lblRefNo: txt('lblRefNo', DEFAULT_LABELS.lblRefNo),
     lblDate: txt('lblDate', DEFAULT_LABELS.lblDate),
     lblLocation: txt('lblLocation', DEFAULT_LABELS.lblLocation),
     lblCoords: txt('lblCoords', DEFAULT_LABELS.lblCoords),
@@ -323,25 +326,24 @@ async function renderWatermark(photo) {
   if (o.date) dt.push(`📅 ${fmtDate(photo.date)}`);
   if (o.time) dt.push(`🕒 ${fmtTime(photo.date)}`);
   if (dt.length) lines.push({ text: dt.join('    '), color: '#ffffff', ltr: true });
+  const effectiveLat = photo.lat != null ? photo.lat : (gps ? gps.lat : null);
+  const effectiveLng = photo.lng != null ? photo.lng : (gps ? gps.lng : null);
   if (o.coords) {
-    lines.push(photo.lat != null
-      ? { text: `📍 ${fmtCoords(photo.lat, photo.lng)}`, color: '#34d399', ltr: true }
+    lines.push(effectiveLat != null
+      ? { text: `📍 ${fmtCoords(effectiveLat, effectiveLng)}`, color: '#34d399', ltr: true }
       : { text: '📍 الإحداثيات غير متوفرة', color: '#fbbf24' });
   }
   if (!lines.length) { photo.rendered = photo.base; return; }
 
-  const fs = Math.max(16, Math.round(Math.min(w, h * 1.3) * 0.032));
-  const lh = Math.round(fs * 1.5);
-  const padY = Math.round(fs * 0.6), padX = Math.round(fs * 0.9);
+  const fs = Math.max(18, Math.round(Math.min(w, h * 1.3) * 0.036));
+  const lh = Math.round(fs * 1.55);
+  const padY = Math.round(fs * 0.65), padX = Math.round(fs * 0.9);
   const barH = lines.length * lh + padY * 2;
-  const grad = ctx.createLinearGradient(0, h - barH, 0, h);
-  grad.addColorStop(0, 'rgba(15,23,42,0.55)');
-  grad.addColorStop(1, 'rgba(15,23,42,0.85)');
-  ctx.fillStyle = grad;
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
   ctx.fillRect(0, h - barH, w, barH);
   ctx.font = `bold ${fs}px Cairo, Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowColor = 'rgba(0,0,0,0.75)';
   ctx.shadowBlur = 3;
   lines.forEach((l, i) => {
     const y = h - barH + padY + lh * i + lh / 2;
@@ -351,7 +353,7 @@ async function renderWatermark(photo) {
     ctx.fillText(l.text, w - padX, y, w - padX * 2);
   });
   ctx.shadowBlur = 0;
-  photo.rendered = c.toDataURL('image/jpeg', 0.88);
+  photo.rendered = c.toDataURL('image/jpeg', 0.9);
 }
 
 function updateWmFieldsUI() {
@@ -425,7 +427,7 @@ function renderPhotos() {
 function clearAllData() {
   if (confirm('هل تريد البدء بتقرير جديد؟ (يتم الإبقاء على القالب واسم مُعِدّ التقرير)')) {
     reportPhotos = [];
-    ['locationName', 'generalNotes'].forEach((id) => { $(id).value = ''; });
+    ['reportRefNo', 'locationName', 'generalNotes'].forEach((id) => { $(id).value = ''; });
     renderPhotos();
   }
 }
@@ -528,8 +530,10 @@ function updateTemplateUI() {
 function reportInfo() {
   const s = readSettings();
   const rows = [];
+  const refNo = $('reportRefNo').value.trim();
   const loc = $('locationName').value.trim();
   const by = $('preparedBy').value.trim();
+  if (refNo) rows.push([s.lblRefNo, refNo]);
   rows.push([s.lblDate, fmtDate(new Date())]);
   if (loc) rows.push([s.lblLocation, loc]);
   const withCoords = reportPhotos.find((p) => p.lat != null);
@@ -547,8 +551,10 @@ function reportInfo() {
 }
 
 function photoMeta(p) {
+  const lat = p.lat != null ? p.lat : (gps ? gps.lat : null);
+  const lng = p.lng != null ? p.lng : (gps ? gps.lng : null);
   const parts = [`${fmtDate(p.date)} ${fmtTime(p.date)}`];
-  if (p.lat != null) parts.push(`GPS: ${fmtCoords(p.lat, p.lng)}`);
+  if (lat != null && lng != null) parts.push(`GPS: ${fmtCoords(lat, lng)}`);
   return parts.join('   •   ');
 }
 
@@ -569,9 +575,9 @@ function buildPages() {
   const html = chunks.map((chunk, pi) => {
     let head = '';
     if (pi === 0 || s.repeatHeader) {
-      head += `<h1 style="color:${s.accent};font-size:16pt;font-weight:700;margin:0 0 2.5mm 0;text-align:center">${esc(info.title)}</h1>`;
+      head += `<h1 class="rep-title" style="color:${s.accent}">${esc(info.title)}</h1>`;
       if (s.showInfo) {
-        head += `<table class="info">${info.rows.map(([k, v]) => `<tr><td class="k" style="color:${s.accent}">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`;
+        head += `<table class="info"><tbody>${info.rows.map(([k, v]) => `<tr><td class="k" style="color:${s.accent}">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
       }
       if (info.notes && pi === 0) head += `<div class="notes"><b style="color:${s.accent}">${esc(info.notesTitle)} </b>${esc(info.notes)}</div>`;
     }
@@ -614,8 +620,9 @@ function fitPages() {
   });
 }
 
-function openPreview() {
+async function openPreview() {
   if (!reportPhotos.length) { alert('يرجى التقاط صورة واحدة على الأقل!'); return; }
+  for (const p of reportPhotos) await renderWatermark(p);
   buildPages();
   $('preview').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -722,6 +729,7 @@ async function exportDocx() {
   if (!window.JSZip) { alert('تعذر تحميل مكتبة Word. تحقق من الاتصال بالإنترنت.'); return; }
   $('busy').classList.remove('hidden');
   try {
+    for (const p of reportPhotos) await renderWatermark(p);
     const blob = docxTemplate ? await docxFromTemplate() : await docxFromScratch();
     const name = (($('projectName').value.trim() || 'تقرير-ميداني').replace(/[\\/:*?"<>|]+/g, '-')) + '.docx';
     downloadBlob(blob, name);
@@ -751,17 +759,14 @@ async function docxFromTemplate() {
     : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
   let ct = await zip.file('[Content_Types].xml').async('string');
 
-  // Parse as XML while preserving exact original string structure around body & sectPr
   const doc = new DOMParser().parseFromString(docXml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('تعذر قراءة القالب');
   const body = doc.getElementsByTagNameNS(NS.w, 'body')[0];
 
-  // Find direct child sectPr at end of body
   let sect = null;
   for (let n = body.lastChild; n; n = n.previousSibling) {
     if (n.nodeType === 1 && n.localName === 'sectPr') { sect = n; break; }
   }
-  // If sectPr was inside a paragraph, extract it cleanly
   if (!sect) {
     const embedded = body.getElementsByTagNameNS(NS.w, 'sectPr');
     if (embedded.length) {
@@ -792,7 +797,6 @@ async function docxFromTemplate() {
   };
   const generatedXml = await buildDocxBody(addImage, usableW, usableH, 9000);
 
-  // Serialize original sectPr intact so Word header/footer rIds & prefixes stay 100% untouched
   const sectXml = sect ? new XMLSerializer().serializeToString(sect) : '';
 
   let keptPrefix = '';
@@ -803,7 +807,6 @@ async function docxFromTemplate() {
     });
   }
 
-  // Replace only the inner contents of <w:body>...</w:body> in the original XML string
   const newDocXml = docXml.replace(/<w:body\b[^>]*>[\s\S]*<\/w:body>/, (match) => {
     const openTag = match.slice(0, match.indexOf('>') + 1);
     return `${openTag}${keptPrefix}${generatedXml}${sectXml}</w:body>`;

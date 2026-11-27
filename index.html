@@ -41,17 +41,18 @@
     }
     .page .lh { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; z-index:0; pointer-events:none; }
     .page .content { position:absolute; z-index:2; display:flex; flex-direction:column; box-sizing:border-box; color:#0f172a; }
+    .page .rep-title { flex-shrink:0; font-size:16pt; font-weight:700; margin:0 0 2.5mm 0; text-align:center; line-height:1.3; }
     .page .grid-photos { flex:1; display:grid; gap:4mm; min-height:0; }
     .page .cell { display:flex; flex-direction:column; min-height:0; border:1px solid #94a3b8; border-radius:2mm; padding:2mm; background:rgba(255,255,255,.94); }
     .page .cell .imgbox { flex:1; min-height:0; position:relative; }
     .page .cell .imgbox img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
-    .page .cap { font-size:10pt; font-weight:700; color:#0f172a; margin-top:1.5mm; line-height:1.35; overflow-wrap:anywhere; }
-    .page .meta { font-size:8pt; color:#334155; direction:rtl; }
-    .page .pno { font-size:8.5pt; font-weight:600; color:#334155; text-align:center; margin-top:2mm; }
-    .page table.info { width:100%; border-collapse:collapse; font-size:9.5pt; margin-bottom:3mm; background:#ffffff; color:#0f172a; }
-    .page table.info td { border:1px solid #94a3b8; padding:1.2mm 2.5mm; color:#0f172a; background:#ffffff; }
+    .page .cap { flex-shrink:0; font-size:10pt; font-weight:700; color:#0f172a; margin-top:1.5mm; line-height:1.35; overflow-wrap:anywhere; }
+    .page .meta { flex-shrink:0; font-size:8pt; color:#334155; direction:rtl; }
+    .page .pno { flex-shrink:0; font-size:8.5pt; font-weight:600; color:#334155; text-align:center; margin-top:2mm; }
+    .page table.info { flex-shrink:0; width:100%; border-collapse:collapse; font-size:9.5pt; margin-bottom:3mm; background:#ffffff; color:#0f172a; }
+    .page table.info td { border:1px solid #94a3b8; padding:1.2mm 2.5mm; color:#0f172a; background:#ffffff; line-height:1.35; }
     .page table.info td.k { background:#f1f5f9; font-weight:700; width:28%; }
-    .page .notes { font-size:9.5pt; color:#0f172a; border:1px solid #94a3b8; border-radius:2mm; padding:2mm 2.5mm; margin-bottom:3mm; background:#f8fafc; max-height:30mm; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .page .notes { flex-shrink:0; font-size:9.5pt; color:#0f172a; border:1px solid #94a3b8; border-radius:2mm; padding:2mm 2.5mm; margin-bottom:3mm; background:#f8fafc; max-height:28mm; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.35; }
 
     @page { size: A4 portrait; margin: 0mm; }
     @media print {
@@ -146,10 +147,18 @@
 
       <div>
         <div class="flex items-center justify-between mb-1 gap-2">
-          <input type="text" id="lblLocation" value="الموقع" class="lbl-inp w-36 font-bold" oninput="saveSettings()" title="تعديل مسمى حقل الموقع" />
+          <input type="text" id="lblRefNo" value="رقم التقرير" class="lbl-inp w-36 font-bold" oninput="saveSettings()" title="تعديل مسمى رقم التقرير" />
           <span class="text-[10px] text-slate-500">اسم الحقل قابل للتعديل</span>
         </div>
-        <input type="text" id="locationName" placeholder="مثال: الدور الثالث / حي الروضة" class="inp" onblur="refreshWatermarksNow()" />
+        <input type="text" id="reportRefNo" placeholder="مثال: 123322A33" class="inp" oninput="saveSettings()" />
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1 gap-2">
+          <input type="text" id="lblLocation" value="الموقع" class="lbl-inp w-36 font-bold" oninput="saveSettings()" title="تعديل مسمى حقل الموقع" />
+          <span class="text-[10px] text-slate-500">اختياري</span>
+        </div>
+        <input type="text" id="locationName" placeholder="مثال: الرفاع / حي الروضة" class="inp" onblur="refreshWatermarksNow()" />
       </div>
 
       <div>
@@ -157,7 +166,7 @@
           <input type="text" id="lblPreparedBy" value="مُعِدّ التقرير" class="lbl-inp w-36 font-bold" oninput="saveSettings()" title="تعديل مسمى مُعِدّ التقرير" />
           <span class="text-[10px] text-slate-500">اختياري</span>
         </div>
-        <input type="text" id="preparedBy" placeholder="مثال: م. عبدالسلام" class="inp" />
+        <input type="text" id="preparedBy" placeholder="مثال: م. عبدالسلام" class="inp" oninput="saveSettings()" />
       </div>
 
       <div>
